@@ -1,0 +1,108 @@
+import cv2
+import math
+from ultralytics import YOLO
+
+# ================== LOAD MODEL ==================
+model = YOLO("yolov8n.pt")
+
+# ================== VIDEO ==================
+cap = cv2.VideoCapture("123.mp4")  # ganti dengan video kamu
+
+fps = cap.get(cv2.CAP_PROP_FPS)
+if fps == 0:
+    fps = 30  # fallback
+
+delay = int(1000 / fps)
+
+# ================== DATA ==================
+prev_positions = {}
+speed_history = {}
+
+# ================== PARAMETER ==================
+PIXEL_TO_METER = 1 / 100   # kalibrasi (ubah sesuai kondisi nyata)
+MIN_SPEED_KMH = 1.0        # filter objek diam
+SMOOTHING_WINDOW = 5       # smoothing
+
+# ================== LOOP ==================
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    # ===== YOLO TRACKING =====
+    results = model.track(frame, persist=True)
+
+    if results[0].boxes is not None:
+        boxes = results[0].boxes.xyxy.cpu().numpy()
+        ids = results[0].boxes.id
+
+        if ids is not None:
+            ids = ids.cpu().numpy()
+
+            for box, obj_id in zip(boxes, ids):
+                obj_id = int(obj_id)
+
+                x1, y1, x2, y2 = box
+
+                # titik tengah
+                cx = int((x1 + x2) / 2)
+                cy = int((y1 + y2) / 2)
+
+                speed_kmh = 0
+
+                # ===== HITUNG SPEED =====
+                if obj_id in prev_positions:
+                    prev_x, prev_y = prev_positions[obj_id]
+
+                    dt = 1 / fps
+
+                    dist_pixel = math.sqrt((cx - prev_x)**2 + (cy - prev_y)**2)
+                    dist_meter = dist_pixel * PIXEL_TO_METER
+
+                    speed_kmh = (dist_meter / dt) * 3.6
+
+                prev_positions[obj_id] = (cx, cy)
+
+                # ===== SMOOTHING =====
+                if obj_id not in speed_history:
+                    speed_history[obj_id] = []
+
+                speed_history[obj_id].append(speed_kmh)
+
+                if len(speed_history[obj_id]) > SMOOTHING_WINDOW:
+                    speed_history[obj_id].pop(0)
+
+                smooth_speed = sum(speed_history[obj_id]) / len(speed_history[obj_id])
+
+                # ===== FILTER OBJEK DIAM =====
+                if smooth_speed < MIN_SPEED_KMH:
+                    continue
+
+                # ===== VISUAL =====
+                cv2.rectangle(frame,
+                              (int(x1), int(y1)),
+                              (int(x2), int(y2)),
+                              (0, 0, 255), 2)
+
+                cv2.circle(frame, (cx, cy), 4, (0, 0, 255), -1)
+
+                text = f"ID {obj_id} : {smooth_speed:.2f} km/h"
+
+                cv2.putText(frame,
+                            text,
+                            (int(x1), int(y1) - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.6,
+                            (0, 0, 255),
+                            2)
+
+    # ===== TAMPILKAN =====
+    cv2.imshow("YOLOv8 Speed Detection FINAL", frame)
+
+    # ===== SESUAI FPS VIDEO =====
+    if cv2.waitKey(delay) & 0xFF == 27:
+        break
+
+# ================== RELEASE ==================
+cap.release()
+cv2.destroyAllWindows()
