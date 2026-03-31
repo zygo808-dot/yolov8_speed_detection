@@ -4,6 +4,7 @@
   Vehicle Speed Detection using YOLOv8 + ByteTrack
 =============================================================
   Cara pakai / Usage:
+    python 1.speed.py --video namafilevidio.mp4 --output hasil.mp4 --show 
     python speed_detector.py --video input.mp4 --output hasil.mp4
     python speed_detector.py --video input.mp4 --fps 30 --scale 0.05
 
@@ -14,6 +15,12 @@
     --scale    : Meter per piksel (kalibrasi jarak nyata)
     --conf     : Confidence threshold (default: 0.4)
     --show     : Tampilkan preview saat proses (flag)
+    
+yolov8n	cepat	rendah
+yolov8s	cepat	sedang
+yolov8m	ideal   tinggi
+yolov8l	lambat	sangat tinggi
+yolov8x	sangat  lambat	maksimal
 =============================================================
 """
 
@@ -258,7 +265,7 @@ def detect_speed(
 
     # ── Load Model ──────────────────────────────
     print("[1/3] Memuat model YOLOv8n ...")
-    model = YOLO("yolov8n.pt")   # unduh otomatis jika belum ada
+    model = YOLO("yolov8m.pt")   # unduh otomatis jika belum ada
     print("      Model siap.\n")
 
     # ── Buka Video ──────────────────────────────
@@ -387,7 +394,7 @@ def detect_speed(
         print("  Kecepatan Tertinggi per ID:")
         for tid, spd in sorted(tracker.max_speeds.items(),
                                key=lambda x: -x[1])[:10]:
-            print(f"    ID #{tid:>4} → {spd:.1f} km/h")
+            print(f"    ID #{tid:>4} → {spd:.0f} km/h")
     print("=" * 60)
 
 
